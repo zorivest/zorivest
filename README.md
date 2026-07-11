@@ -2,7 +2,7 @@
 
 > **Privacy-first, local-first desktop trading journal & portfolio tracker**
 
-Zorivest helps you plan, track, and analyze your trading portfolio — entirely on your own machine. Your data stays local, encrypted, and under your control.
+Zorivest helps you plan, track, and analyze your trading portfolio — entirely on your own machine. Your data stays local and under your control.
 
 ## ⚠️ Safety Statement
 
@@ -10,7 +10,7 @@ Zorivest helps you plan, track, and analyze your trading portfolio — entirely 
 
 ## Features
 
-- **Local-First Architecture** — All data stored locally in an encrypted SQLite database (SQLCipher AES-256). No cloud dependency for core functionality.
+- **Local-First Architecture** — All data stored locally in a SQLite database on your machine. No cloud dependency for core functionality.
 - **Multi-Broker Import** — Import trades from Interactive Brokers (TWS), Alpaca, Tradier, and CSV files from most brokers.
 - **Portfolio Analytics** — Sharpe ratio, drawdown analysis, P&L tracking, win/loss ratios, and custom metrics.
 - **Tax Reporting** — Wash sale detection, Schedule D / Form 8949 preparation, tax-lot optimization.
@@ -56,8 +56,7 @@ On first launch, Windows SmartScreen may show a "Windows protected your PC" warn
 │  └──────────┬────────────┘  │
 │             │               │
 │  ┌──────────▼────────────┐  │
-│  │ SQLCipher Database    │  │
-│  │ AES-256 Encrypted     │  │
+│  │ SQLite Database       │  │
 │  │ Local storage only    │  │
 │  └───────────────────────┘  │
 └─────────────────────────────┘
@@ -69,7 +68,7 @@ On first launch, Windows SmartScreen may show a "Windows protected your PC" warn
 - **No cloud dependency** — The app runs a local Python backend on `127.0.0.1:17787`. All API calls stay on your machine.
 - **No telemetry** — Zero analytics, tracking, or phone-home behavior.
 - **No account required** — Use the full application without creating an account or providing an email.
-- **Optional encryption** — Enable SQLCipher AES-256 encryption for your database with your own passphrase.
+- **Protect your data** — We recommend enabling Windows BitLocker on your drive for at-rest protection of your portfolio data.
 
 ## Documentation
 

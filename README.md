@@ -41,7 +41,7 @@ Get-FileHash zorivest-*-setup.exe -Algorithm SHA256 | Format-List
 
 ### Windows SmartScreen
 
-On first launch, Windows SmartScreen may show a "Windows protected your PC" warning because the app is new and building reputation. Click **"More info"** → **"Run anyway"** to proceed. This is expected for new applications.
+On first launch, Windows SmartScreen may show a "Windows protected your PC" warning because the app is unsigned and still building reputation. Click **"More info"** → **"Run anyway"** to proceed. Full walkthrough: [INSTALL.md](INSTALL.md).
 
 ## Privacy Architecture
 
@@ -72,8 +72,10 @@ On first launch, Windows SmartScreen may show a "Windows protected your PC" warn
 
 ## Documentation
 
+- [Windows install and SmartScreen](INSTALL.md)
 - [Reference Documentation](https://github.com/zorivest/zorivest/tree/main/docs/reference) — Detailed explanations of features and calculations
 - [User Guides](https://github.com/zorivest/zorivest/tree/main/docs/guides) — How-to guides for common workflows
+- [User Guide](https://github.com/zorivest/zorivest/tree/main/docs/user-guide) — Learn Zorivest on the built-in Improving Investor sample
 
 ## Reporting Issues
 

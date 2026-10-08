@@ -37,7 +37,7 @@ Use this workflow when implementing a Manageable Execution Unit (milestone). Opu
 > [!IMPORTANT]
 > **This step is mandatory.** It ensures the workflow tracks progress against the canonical task table — whether invoked standalone or from `/execution-session`.
 
-Read the project `task.md` at `docs/execution/plans/{project-slug}/task.md`. If the user provided it as context, use that path. Otherwise, discover it from the `implementation-plan.md` YAML frontmatter or from `docs/execution/plans/` by date.
+Read the project `task.md` at `{execution-docs}/plans/{project-slug}/task.md`. If the user provided it as context, use that path. Otherwise, discover it from the `implementation-plan.md` YAML frontmatter or from `{execution-docs}/plans/` by date.
 
 1. Read (your harness `read_tool`) the canonical task.md
 2. Count `[ ]` items — this is the full work queue
@@ -47,7 +47,7 @@ Read the project `task.md` at `docs/execution/plans/{project-slug}/task.md`. If 
 ### 1. Scope Lock
 
 // turbo
-Read the milestone definition from `project configuration/context/milestone-tracking.yaml` (query: `uv run python tools/milestone-tracking.py get milestone-{N}`). Read the corresponding build plan section and any canonical local docs it references. Do NOT expand scope beyond the milestone boundary, but do implement the full documented contract.
+Read the milestone definition from `project configuration/context/milestone-tracking.yaml` (query: `uv run python tools/meu_status.py get milestone-{N}`). Read the corresponding build plan section and any canonical local docs it references. Do NOT expand scope beyond the milestone boundary, but do implement the full documented contract.
 
 If the spec is not specific enough to support concrete acceptance criteria without guesswork, stop here and return to PLANNING / `project configuration/workflows/pre-build-research.md`. Do not start Red phase on unsourced assumptions.
 
@@ -65,7 +65,7 @@ Write FIC inline in your session notes:
 
 ### 3. Red Phase — Write Failing Tests
 
-Write ALL tests FIRST in the appropriate `tests/unit/` file. Every AC must have at least one test. Include:
+Write ALL tests FIRST in the appropriate `tests/unit/` file. Every AC must have at least one test. Before the red test, make the wait it exercises injectable (G40). Include:
 - Happy path tests
 - Edge case tests (zero, negative, empty, overflow)
 - Error condition tests
@@ -82,7 +82,7 @@ For write-adjacent MEUs, the Red phase MUST include negative input tests:
 // turbo
 
 > **P0 REMINDER:** Use the redirect-to-file pattern for this command.
-> `pytest tests/unit/test_{module}.py -x --tb=short -v *> local receipt directory/pytest.txt; Get-Content local receipt directory/pytest.txt | Select-Object -Last 40`
+> `pytest tests/unit/test_{module}.py -x --tb=short -v *> $env:TEMP/zorivest/pytest.txt; Get-Content $env:TEMP/zorivest/pytest.txt | Select-Object -Last 40`
 
 Run tests to confirm they FAIL:
 ```bash
@@ -98,16 +98,16 @@ Save the failure output — you will include it in the handoff FAIL_TO_PASS tabl
 > ⚠️ **Test Immutability**: Once tests are written in Red phase, do NOT modify test assertions or expected values. If a test expectation is wrong, fix the *implementation*, not the *test*. Only test setup/fixture changes are allowed.
 
 > [!CAUTION]
-> **Scope Expansion Gate.** If the user requests features outside the approved plan scope during execution (e.g., "also add a delete tool" or "add a refresh button"), PAUSE and ask: "This is outside the current plan. Should I (a) update the plan first, (b) treat this as a separate ad-hoc fix, or (c) defer to a follow-up milestone?" Proceeding without updating plan artifacts causes handoff/review misalignment (ref: emerging-standards.md, 2026-03-19 session F14).
+> **Scope Expansion Gate.** If the user requests features outside the approved plan scope during execution (e.g., "also add a delete tool" or "add a refresh button"), the routing question — (a) amend the plan first, (b) treat it as a separate ad-hoc fix, or (c) defer to a follow-up milestone — goes through `project configuration/docs/human-decision-protocol.md` like any other decision: precedent sweep (prior plans' Decision Logs, `emerging-standards.md`, the grouping's §8), web research where a standard could settle it, then the obviousness test. Obvious → decide, amend the plan artifacts before touching code, and log it in the milestone handoff's `## Decision Log`. Not obvious → a Decision Brief with the recommendation first, presented at the next sanctioned gate rather than as a bare a/b/c question. Never proceed with unamended plan artifacts: that is what causes handoff/review misalignment (ref: emerging-standards.md, 2026-03-19 session F14).
 
 Write the minimum code to make all tests pass. Follow the build plan spec exactly — use the same function signatures, class names, and field names.
 
-Do not invent new product behavior in code. If a gap appears during implementation, route it back to planning/research and update the FIC before continuing.
+Do not invent new product behavior in code. If a gap appears during implementation, route it back to planning/research and update the FIC before continuing. An execution-time fork (an AC unreachable as written, two plausible implementations, a bound that must move) follows `project configuration/docs/human-decision-protocol.md`: precedent sweep, web research, obviousness test — decide and log it in the milestone handoff when the test passes; otherwise hold the row `[B]` with a Decision Brief (recommendation first) as its `Decision:` line and keep working the other rows. Holding the row stages the brief; it is *presented* at the next sanctioned gate (the milestone handoff / closeout human-decision exit, `AGENTS.md` §Execution Contract), where the turn ends per protocol §5 — never by ending the turn mid-execution.
 
 // turbo
 
 > **P0 REMINDER:** Use the redirect-to-file pattern for this command.
-> `pytest tests/unit/test_{module}.py -x --tb=short -v *> local receipt directory/pytest.txt; Get-Content local receipt directory/pytest.txt | Select-Object -Last 40`
+> `pytest tests/unit/test_{module}.py -x --tb=short -v *> $env:TEMP/zorivest/pytest.txt; Get-Content $env:TEMP/zorivest/pytest.txt | Select-Object -Last 40`
 
 Run tests to confirm they PASS:
 ```bash
@@ -117,6 +117,8 @@ pytest tests/unit/test_{module}.py -x --tb=short -v
 > **Test output compression**: When recording Green phase output for the handoff, include only: (1) the summary line (`{N} passed`), (2) any remaining failures with their assertion messages. Do not include verbose output of passing tests. See `project configuration/docs/context-compression.md §Test Output Compression`.
 
 ### 5. Quality Checks
+
+Run the milestone gate; a red `Python Slow-Test Budget` stage is fixed per the fix table in `testing-strategy.md` §Test Wait Budget before handoff (G40).
 
 // turbo
 Run type checking and linting:
@@ -138,7 +140,7 @@ ruff check packages/core/src/ # ← adjust per active phase
 // turbo
 
 > **P0 REMINDER:** Use the redirect-to-file pattern for this command.
-> `pytest -x --tb=short -m "unit" *> local receipt directory/pytest.txt; Get-Content local receipt directory/pytest.txt | Select-Object -Last 40`
+> `pytest -x --tb=short -m "unit" *> $env:TEMP/zorivest/pytest.txt; Get-Content $env:TEMP/zorivest/pytest.txt | Select-Object -Last 40`
 
 Run the complete test suite to check for regressions:
 ```bash
@@ -153,7 +155,7 @@ pytest -x --tb=short -m "unit"
 > [!IMPORTANT]
 > **This step is mandatory after each milestone's quality checks pass.** It keeps the canonical task tracker in sync and drives multi-milestone continuation.
 
-1. Read (your harness `read_tool`) the canonical `task.md` at `docs/execution/plans/{project-slug}/task.md`
+1. Read (your harness `read_tool`) the canonical `task.md` at `{execution-docs}/plans/{project-slug}/task.md`
 2. Update all task rows completed during this milestone's TDD cycle from `[ ]` to `[x]`
 3. Count remaining `[ ]` items across ALL MEUs in the task table:
    - If `[ ]` items remain for **the current milestone** → continue fixing (do NOT proceed to handoff)
@@ -161,7 +163,7 @@ pytest -x --tb=short -m "unit"
    - If `[ ]` items remain that are **post-milestone deliverables** (BUILD_PLAN, registry, handoffs, reflection, metrics) → proceed to Step 6.7
    - If only `[x]` and `[B]` remain → proceed to Step 6.9
 
-> **Source of truth**: Always update the PROJECT task.md (`docs/execution/plans/...`), never only an agent workspace copy.
+> **Source of truth**: Always update the PROJECT task.md (`{execution-docs}/plans/...`), never only an agent workspace copy.
 
 ### 6.7. Post-milestone Administrative Tasks (Solution C)
 
@@ -170,28 +172,31 @@ pytest -x --tb=short -m "unit"
 
 If all milestone-tracking implementation tasks are `[x]` (or `[B]`), execute the post-milestone deliverables from `task.md` in order:
 
-1. **Update milestone status via SSOT** — `uv run python tools/milestone-tracking.py update milestone-{N} approved` (auto-stamps date, regenerates labels)
-2. **Render SSOT regions** — `uv run python tools/milestone-tracking.py render` (regenerates BUILD_PLAN.md and milestone-tracking.md status tables from YAML)
+1. **Update milestone status via SSOT** — `uv run python tools/meu_status.py update milestone-{N} approved` (auto-stamps date, regenerates labels)
+2. **Render SSOT regions** — `uv run python tools/meu_status.py render` (regenerates BUILD_PLAN.md and milestone-tracking.md status tables from YAML)
 3. **Update `project configuration/context/current-focus.md`** — reflect new project state
-4. **Run milestone gate** — `uv run python tools/validate_codebase.py --scope milestone`
+4. **Run milestone gate** — `uv run python tools/validate_codebase.py --scope meu --files <paths>`
+   - Runs the integration stage only when a touched path is under INTEGRATION_TOUCH_PREFIXES (`packages/`, `tools/`); otherwise it is skipped (ZERO_COLLECT_POLICY).
+   - Blocking stages run cheapest first and the gate stops at the first blocking failure (later stages are recorded `not_run`); `--no-failfast` now means run every stage regardless of an earlier failure.
+   - The milestone gate omits the advisory coverage stage unless `--coverage` is passed.
 5. **Run full regression** — `uv run pytest tests/ -x --tb=short -v`
 6. **OpenAPI drift check (G8)** — if any file in `packages/api/` was created or modified:
    ```powershell
    # Step 1: Detect drift
-   uv run python tools/export_openapi.py --check openapi.committed.json *> local receipt directory/openapi-check.txt
-   Get-Content local receipt directory/openapi-check.txt
+   uv run python tools/export_openapi.py --check openapi.committed.json *> $env:TEMP/zorivest/openapi-check.txt
+   Get-Content $env:TEMP/zorivest/openapi-check.txt
    # → [OK] = skip Step 2
    # → [FAIL] = run Step 2:
-   uv run python tools/export_openapi.py -o openapi.committed.json *> local receipt directory/openapi-regen.txt
-   Get-Content local receipt directory/openapi-regen.txt
+   uv run python tools/export_openapi.py -o openapi.committed.json *> $env:TEMP/zorivest/openapi-regen.txt
+   Get-Content $env:TEMP/zorivest/openapi-regen.txt
    ```
 7. **Anti-placeholder scan** — `rg "TODO|FIXME|NotImplementedError" packages/`
 8. **Audit BUILD_PLAN.md** for stale references
-9. **Create reflection** — `docs/execution/reflections/{date}-{slug}-reflection.md`
-   - **MUST** read (your harness `read_tool`) `docs/execution/reflections/TEMPLATE.md` before writing — Template-First Rule (AGENTS.md §436)
-   - Follow the full 7-section structure: Friction Log → Quality Signals → Workflow Signals → Pattern Extraction → Design Rules → Next Day Outline → Efficiency Metrics → Instruction Coverage YAML
-   - See `execution-session.md §5` for section descriptions. The YAML block is section 7 of 7 — not the entire file.
-10. **Append metrics row** — `docs/execution/metrics.md`
+9. **Create reflection** — `{execution-docs}/reflections/{date}-{slug}-reflection.md`
+   - **MUST** read (your harness `read_tool`) `{execution-docs}/reflections/TEMPLATE.md` before writing — Template-First Rule (AGENTS.md §436)
+   - Follow the full template structure (every heading — 6 `##` + 9 `###`): Friction Log → Quality Signals → Workflow Signals → Decisions Log → Pattern Extraction → Design Rules → Next Day Outline → Efficiency Metrics → Instruction Coverage YAML
+   - See `execution-session.md §5` for section descriptions. The YAML block is only the final `## Instruction Coverage` section — not the entire file.
+10. **Append metrics row** — `{execution-docs}/metrics.md`
 
 Mark each deliverable `[x]` in `task.md` as you complete it. Do NOT batch-mark — update after each item.
 
@@ -202,7 +207,7 @@ After all post-milestone tasks are `[x]`, proceed to Step 6.9.
 > [!CAUTION]
 > **This step CANNOT be skipped.** It is the structural enforcement of the anti-premature-stop rule. You must physically read (your harness `read_tool`) the file below before proceeding to Step 7.
 
-1. **Read (your harness `read_tool`)** the canonical `task.md` at `docs/execution/plans/{project-slug}/task.md` — do this NOW
+1. **Read (your harness `read_tool`)** the canonical `task.md` at `{execution-docs}/plans/{project-slug}/task.md` — do this NOW
 2. **Count** every `[ ]` item in the task table
 3. **Decision gate:**
    - If `[ ]` count > 0 → **STOP HERE. Do NOT proceed to Step 7.** Return to the appropriate earlier step to complete remaining work.
@@ -247,7 +252,7 @@ Create the handoff file at `project configuration/context/handoffs/{YYYY-MM-DD}-
 5. Handoff artifact created with evidence
 7. **Re-read gate passed (Step 6.9)** — read (your harness `read_tool`) the canonical task.md was executed and confirmed zero `[ ]` items remain (or remaining items are `[B]` blocked with linked follow-up)
 8. **Post-milestone deliverables completed (Step 6.7)** — all administrative tasks (BUILD_PLAN, registry, reflection, metrics) are `[x]` in the PROJECT task.md
-9. **task.md fully updated** — all completed task rows marked `[x]` in `docs/execution/plans/{project-slug}/task.md`
+9. **task.md fully updated** — all completed task rows marked `[x]` in `{execution-docs}/plans/{project-slug}/task.md`
 10. **Instruction Coverage YAML emitted (Step 7.5)** — reflection file contains `schema: v1` YAML block with `sections`, `loaded`, and `decisive_rules` populated per `project configuration/schemas/reflection.v1.yaml`
 
 ## Failure Protocol

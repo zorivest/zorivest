@@ -47,10 +47,23 @@ uv run python tools/validate_codebase.py       # full repo quality gate — run 
 
 > There is intentionally no `Makefile` — call `uv`/`npm` commands directly.
 
-## Canonical Port
+## Canonical Ports
 
-**`17787`** — the backend API, bound to `127.0.0.1` only. Every reference to "the API" in code,
-docs, or tests means this port. (Vite dev server is `5173`, unrelated.)
+| Port | Process | Binding |
+|------|---------|---------|
+| **`17787`** | Backend API (FastAPI) | `127.0.0.1` only |
+| **`8766`** | MCP Streamable HTTP listener (opt-in `--http`) | `127.0.0.1` only |
+
+Every reference to "the API" in code, docs, or tests means port **17787**. The MCP HTTP
+listener defaults to **8766** and is configurable via `--http-port` / `ZORIVEST_MCP_HTTP_PORT`;
+the live bound port is published to a user-scoped `mcp-runtime.json` (see
+`mcp-server/src/http/runtime-registry.ts`). Stdio remains the MCP default transport.
+(Vite dev server is `5173`, unrelated.)
+
+**HTTP MCP agent note:** `POST /mcp` requires `Authorization: Bearer <api_key>` (missing →
+**401**) and a loopback `Host` matching the bound port (foreign Host → **403** DNS-rebinding
+gate). `GET /health` is unauthenticated. Stdio clients ignore Bearer/Host. See
+`mcp-server/templates/agent/AGENTS.md` §MCP Connection (API keys mint as `zrv_sk_…`).
 
 ## TDD Mandate
 

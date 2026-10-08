@@ -365,3 +365,10 @@ Close a trade
 | AI Review | `zorivest_analytics` | `ai_review` | `trade_exec_id`, (optional: `budget_cap`) |
 | Options Strategy | `zorivest_analytics` | `options_strategy` | `leg_exec_ids` (array of 2+ exec IDs) |
 | Mistake Summary | `zorivest_analytics` | `mistake_summary` | (optional: `account_id`, `period`) |
+
+## Try it on the sample
+
+The Improving Investor sample shows these features on a full year of trades:
+
+- [Spotlights and reviews](https://github.com/zorivest/zorivest/blob/main/docs/user-guide/03-spotlights-and-reviews.md) — ten teaching trades, and the trader's own reviews as adherence rises and mistakes fall.
+- [Analytics and evidence](https://github.com/zorivest/zorivest/blob/main/docs/user-guide/07-analytics-and-evidence.md) — strategy expectancy, what needs market data, and how trades cite their news.

@@ -5,8 +5,11 @@
 ## Table of Contents
 
 - [Policy Structure](#policy-structure)
+  - [Canonical Example](#canonical-example)
 - [Step 1: Fetch](#step-1-fetch)
 - [Step 2: Transform](#step-2-transform)
+  - [Write Rules](#write-rules-validated-before-any-run)
+  - [Dry Run](#dry-run)
 - [Step 3: Store Report](#step-3-store-report)
 - [Step 4: Render](#step-4-render)
 - [Step 5: Send](#step-5-send)
@@ -61,6 +64,60 @@ A policy is a JSON document stored in the `policies` table. The pipeline runner 
 | `skip_if` | string | ✅ | Condition expression — skip step when truthy |
 | `error_mode` | string | ✅ | `"fail"` (default), `"continue"`, `"retry"` |
 
+> ⚠️ **`PolicyStep` is a closed object.** The published schema sets
+> `"additionalProperties": false` on `PolicyStep` (milestone-tracking, Boundary Input Contract item 4),
+> so a step may only carry the fields in the table above (`id`, `type`, `params`, `skip_if`,
+> `error_mode`, plus `on_error`, `required`, `retry`, `timeout`). An unknown step key such as
+> `config` is refused with a 422 naming the exact path — `steps.<i>.<key>` — instead of being
+> dropped silently and leaving `params` to default to `{}`. This is enforced at create, update,
+> emulate, and run.
+
+### Canonical Example
+
+`tests/fixtures/policy_contract/example-policy.json`
+is the executable reference for this guide — every field it uses is a real, accepted field, and
+it is exercised directly by the contract test suite. When this guide and the fixture ever
+disagree, the fixture wins.
+
+```json
+{
+  "name": "Test FAANG Yahoo Daily Notes",
+  "schema_version": 1,
+  "trigger": {
+    "cron_expression": "55 11 * * *",
+    "enabled": true,
+    "timezone": "America/New_York"
+  },
+  "steps": [
+    {
+      "id": "fetch_yahoo_faang",
+      "type": "fetch",
+      "params": {
+        "provider": "yahoo",
+        "data_type": "quote",
+        "criteria": { "tickers": ["META", "AAPL", "AMZN", "NFLX", "GOOGL"] },
+        "use_cache": false
+      }
+    },
+    {
+      "id": "store_quotes",
+      "type": "transform",
+      "params": {
+        "target_table": "market_quotes",
+        "mapping": "auto",
+        "write_disposition": "append",
+        "source_step_id": "fetch_yahoo_faang"
+      }
+    }
+  ]
+}
+```
+
+Run `tools/export_policy_schema.py --check tests/fixtures/policy_contract/policy-document.schema.json`
+to prove the committed schema snapshot still matches what `PolicyDocument.model_json_schema()`
+publishes — a mismatch means this guide's schema claims (closed keys, `additionalProperties`)
+are stale.
+
 ---
 
 ## Step 1: Fetch
@@ -75,7 +132,7 @@ Retrieves market data from an external provider via HTTP. Supports caching, crit
 
 | Parameter | Type | Default | Dynamic | Description |
 |-----------|------|---------|---------|-------------|
-| `provider` | string | *required* | ✅ | Provider display name from registry (see [Available Providers](#available-providers)) |
+| `provider` | string | *required* | ✅ | Either the provider slug (e.g. `yahoo`) or the display name (e.g. `Yahoo Finance`) is accepted — both spellings work at policy create and at run time (see [Available Providers](#available-providers)) |
 | `data_type` | string | *required* | ✅ | Data type: `ohlcv`, `quote`, `news`, `fundamentals` |
 | `criteria` | object | `{}` | ✅ | Criteria for data selection (see [Criteria Types](#criteria-types)) |
 | `batch_size` | integer | `100` | ✅ | Max records per fetch batch (1–500) |
@@ -85,16 +142,33 @@ Retrieves market data from an external provider via HTTP. Supports caching, crit
 
 Each key in the `criteria` object can use different resolution strategies:
 
+> ⚠️ **The `criteria` key set is closed.** `FetchStep.Criteria` sets
+> `model_config = {"extra": "forbid"}` (milestone-tracking AC-11), so a key outside the table below is a
+> **422 at policy save**, not a silently ignored field. Only these keys are accepted:
+> `tickers`, `symbol`, `date_range`, `exchange`, `outputsize`, `vendor`, `table`, `id_type`,
+> `form_type` — each one a key some URL builder actually reads. The closure is deliberate: a
+> key no builder reads produces an empty result set on the next scheduled run, so a typo such
+> as `tikcers` is far cheaper to catch at the write boundary than at 3 a.m. The published
+> `/scheduling/step-types` schema (milestone-tracking) shows `criteria` as this same closed object —
+> `"additionalProperties": false` with exactly the nine keys above — because `Params.criteria`
+> is typed as `FetchStep.Criteria` itself, so the schema an agent reads and the model that
+> refuses its input are one definition.
+
 #### Static values (no `type` key — passed through unchanged)
 
 ```json
 {
   "criteria": {
     "tickers": ["AAPL", "MSFT", "GOOGL"],
-    "interval": "1d"
+    "exchange": "US"
   }
 }
 ```
+
+> **Do not pass `interval`.** Earlier revisions of this guide showed `"interval": "1d"` here.
+> It was never read from `criteria` — the Yahoo builder hardcodes
+> `params = {"interval": "1d"}` (`url_builders.py:178`) — and since AC-11 closed the schema it
+> is rejected outright. The example above is corrected to a key the builders genuinely consume.
 
 #### Relative dates (`type: "relative"`)
 
@@ -230,6 +304,52 @@ When `source_step_id` is not set, TransformStep auto-discovers its input:
   ]
 }
 ```
+
+### Write Rules (validated before any run)
+
+Rule 15 (milestone-tracking `WRITE_RULES`) checks a transform's write against the same contracts the live
+write itself enforces — it fires at **create, update, emulate, and run**, so a policy that only
+looks wrong at the first live run instead fails at the boundary where it is cheapest to fix. The
+transform has no `data_type` of its own; the rule infers it from the `fetch` step named by
+`source_step_id`.
+
+(a) **`WRITE_TARGET_MISMATCH`** — `target_table` must equal the contract table for the source
+fetch's `data_type`:
+
+| `data_type` | `target_table` |
+|-------------|-----------------|
+| `ohlcv` | `market_ohlcv` |
+| `earnings` | `market_earnings` |
+| `dividends` | `market_dividends` |
+| `splits` | `market_splits` |
+| `insider` | `market_insider` |
+| `fundamentals` | `market_fundamentals` |
+| `quote` | `market_quotes` |
+| `news` | `market_news` |
+
+(b) **`WRITE_MERGE_NO_NATURAL_KEY`** — `write_disposition: merge` needs a target table with a
+declared natural key. Only these tables qualify:
+
+| Table | Natural key columns |
+|-------|---------------------|
+| `market_ohlcv` | `ticker`, `timestamp`, `provider` |
+| `market_earnings` | `ticker`, `fiscal_period`, `fiscal_year` |
+| `market_dividends` | `ticker`, `ex_date` |
+| `market_splits` | `ticker`, `execution_date` |
+| `market_insider` | `ticker`, `name`, `transaction_date`, `transaction_code` |
+| `market_fundamentals` | `ticker`, `metric`, `period`, `provider` |
+
+`market_quotes` has **no** natural key — use `write_disposition: append` for it, not `merge`.
+
+(c) **`WRITE_UNSUPPORTED_DATA_TYPE`** — a `data_type` with no entry in the `data_type →
+target_table` table above (i.e. no direct-write contract) cannot feed any `target_table` at all.
+
+### Dry Run
+
+A dry run skips write steps; nothing was written. A green dry run only proves the read path
+(criteria resolution, cache lookups, provider fetch) succeeded — it does not prove a live write
+will succeed, since Rule 15's write-contract checks and the writer's own constraints still apply
+the first time a real `write_disposition` actually runs.
 
 ### What's Hardcoded
 
@@ -600,21 +720,29 @@ Auto-generated table from any record set. Iterates over dict keys dynamically.
 
 From `provider_registry.py`:
 
-| Provider Name | Auth Required | Rate Limit | Supported data_types |
-|--------------|---------------|------------|---------------------|
-| Yahoo Finance | ❌ No | 100/min | `ohlcv`, `quote`, `news` |
-| TradingView | ❌ No | 60/min | (scanner only) |
-| Alpha Vantage | ✅ API key | 5/min | `ohlcv`, `quote` |
-| Polygon.io | ✅ Bearer | 5/min | `ohlcv`, `quote`, `news`, `fundamentals` |
-| Finnhub | ✅ Header | 60/min | `ohlcv`, `quote`, `news` |
-| Financial Modeling Prep | ✅ API key | 250/min | `ohlcv`, `fundamentals` |
-| EODHD | ✅ API key | 20/min | `ohlcv` |
-| Nasdaq Data Link | ✅ API key | 50/min | `fundamentals` |
-| SEC API | ✅ Header | 60/min | `fundamentals` |
-| API Ninjas | ✅ Header | 60/min | `quote` |
-| OpenFIGI | ✅ Header | 10/min | (identifier mapping) |
-| Alpaca | ✅ Key + Secret | 200/min | `ohlcv`, `quote` |
-| Tradier | ✅ Bearer | 120/min | `ohlcv`, `quote` |
+| Provider Name | Slug | Auth Required | Rate Limit | Supported data_types |
+|--------------|------|---------------|------------|---------------------|
+| Yahoo Finance | `yahoo` | ❌ No | 100/min | `ohlcv`, `quote`, `news` |
+| TradingView | `tradingview` | ❌ No | 60/min | (scanner only) |
+| Alpha Vantage | `alpha_vantage` | ✅ API key | 5/min | `ohlcv`, `quote` |
+| Polygon.io | `polygon` | ✅ Bearer | 5/min | `ohlcv`, `quote`, `news`, `fundamentals` |
+| Finnhub | `finnhub` | ✅ Header | 60/min | `ohlcv`, `quote`, `news` |
+| Financial Modeling Prep | `fmp` | ✅ API key | 250/min | `ohlcv`, `fundamentals` |
+| EODHD | `eodhd` | ✅ API key | 20/min | `ohlcv` |
+| Nasdaq Data Link | `nasdaq_dl` | ✅ API key | 50/min | `fundamentals` |
+| SEC API | `sec_api` | ✅ Header | 60/min | `fundamentals` |
+| API Ninjas | `api_ninjas` | ✅ Header | 60/min | `quote` |
+| OpenFIGI | `openfigi` | ✅ Header | 10/min | (identifier mapping) |
+| Alpaca | `alpaca` | ✅ Key + Secret | 200/min | `ohlcv`, `quote` |
+| Tradier | `tradier` | ✅ Bearer | 120/min | `ohlcv`, `quote` |
+
+> `market_contract.PROVIDER_SLUGS` also carries `Interactive Brokers` (`ibkr`) and
+> `SEC EDGAR` (`sec_edgar`), but neither has a `PROVIDER_REGISTRY` entry: IBKR OHLCV arrives
+> through the broker sync path, not an HTTP fetch step, so no `fetch` step can name either one.
+
+Slugs are the `PROVIDER_SLUGS` mapping in
+`market_contract.py`; a
+`fetch` step's `provider` field accepts either the slug or the display name in this table.
 
 > ⚠️ **Only Yahoo Finance has full URL builder + response extractor implementation.** Other providers have registry entries but their URL builders and extractors are generic/incomplete. Adding production support for a new provider requires implementing its `UrlBuilder` and response extractor.
 
@@ -753,3 +881,10 @@ Applied after validation, before output:
 **Gap:** Only 4 schemas (ohlcv, quote, news, fundamentals) exist. Cannot define custom schemas per policy.
 
 **Proposed:** Allow inline Pandera-like schema definitions in policy JSON, or a schema registry table.
+
+## Try it on the sample
+
+The Improving Investor sample ships five draft policies and twenty frozen reports:
+
+- [Activating your sample reports](https://github.com/zorivest/zorivest/blob/main/docs/user-guide/09-activating-sample-reports.md) — approve, enable and run a sample policy.
+- [Stored reports](https://github.com/zorivest/zorivest/blob/main/docs/user-guide/08-stored-reports.md) — what each sample report contains.

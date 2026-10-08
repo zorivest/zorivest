@@ -193,16 +193,16 @@ A complete policy that searches financial news, generates an AI analysis, and em
 ```bash
 # 1. Ensure Tavily key is configured in Settings → AI Providers
 # 2. Create the policy via MCP or API:
-curl -X POST httlocal workspace \
+curl -X POST http://localhost:18710/api/v1/scheduling/policies \
   -H "Content-Type: application/json" \
   -d @ai-digest-policy.json
 
 # 3. Approve and trigger:
-curl -X POST httlocal workspace
-curl -X POST httlocal workspace
+curl -X POST http://localhost:18710/api/v1/scheduling/policies/{id}/approve
+curl -X POST http://localhost:18710/api/v1/scheduling/policies/{id}/trigger
 
 # 4. Check run history:
-curl httlocal workspace
+curl http://localhost:18710/api/v1/scheduling/policies/{id}/runs
 ```
 
 ---

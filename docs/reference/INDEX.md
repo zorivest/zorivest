@@ -19,7 +19,15 @@
     - Parse the slug from the GitHub URL
     - Reconcile against this index
     - Flag any orphaned docs (in index but not referenced) or missing docs (referenced but not in index)
+
+  CODE / VALIDATION COMPANION:
+    For math features (formulas ↔ domain modules ↔ API/MCP ↔ oracles ↔ tests),
+    see math-features-index.md — this INDEX tracks theory ↔ GUI deep-links only.
 -->
+
+> **Math / validation companion:** math-features-index.md maps theory formulas to domain code, surfaces, oracles, and validation status.
+>
+> **Complex ops / validation companion:** complex-ops-index.md maps non-math operational logic (AI review, tax audit, scheduling/templates, import, security) for advanced-model review.
 
 ## Quick Reference
 

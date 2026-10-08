@@ -474,14 +474,14 @@ Decisions made based on web research (UX Stack Exchange, Nielsen Norman Group, I
 ### G16 — Electron CSP Must Include img-src for Local API Images
 - **Severity:** 🔴 Critical
 - **Applies to:** GUI (Electron)
-- **Rule:** The Electron renderer's `Content-Security-Policy` meta tag must include `img-src 'self' httlocal workspace httlocal workspace data:`. Without this, `<img>` tags pointing to the local API will silently fail (`naturalWidth === 0`) with no console error.
-- **Origin:** 2026-04-06 — Screenshots uploaded via the API rendered as broken images in the ScreenshotPanel. Root cause: `default-src 'self'` blocked images from `httlocal workspace`. No browser console error was visible; debugging required checking `naturalWidth` in DevTools.
-- **Bad example:** CSP with only `default-src 'self' httlocal workspace` — `default-src` does NOT cascade to `img-src` for cross-origin images when the page is loaded from `file://` or Electron's custom protocol
+- **Rule:** The Electron renderer's `Content-Security-Policy` meta tag must include `img-src 'self' http://localhost:* http://127.0.0.1:* data:`. Without this, `<img>` tags pointing to the local API will silently fail (`naturalWidth === 0`) with no console error.
+- **Origin:** 2026-04-06 — Screenshots uploaded via the API rendered as broken images in the ScreenshotPanel. Root cause: `default-src 'self'` blocked images from `http://127.0.0.1:17787`. No browser console error was visible; debugging required checking `naturalWidth` in DevTools.
+- **Bad example:** CSP with only `default-src 'self' http://localhost:*` — `default-src` does NOT cascade to `img-src` for cross-origin images when the page is loaded from `file://` or Electron's custom protocol
 - **Good example:**
   ```html
   <meta http-equiv="Content-Security-Policy"
-    content="default-src 'self' httlocal workspace httlocal workspace
-             img-src 'self' httlocal workspace httlocal workspace data:;
+    content="default-src 'self' http://localhost:* http://127.0.0.1:*;
+             img-src 'self' http://localhost:* http://127.0.0.1:* data:;
              script-src 'self'; style-src 'self' 'unsafe-inline'" />
   ```
 - **Debugging tip:** If images fail to load in Electron, inspect with `document.querySelector('img').naturalWidth` — `0` means CSP blocked, not a network error.
@@ -837,7 +837,7 @@ const { showModal, guardedSelect, handleCancel, handleDiscard, handleSaveAndCont
   | Tax year persistence | Default to current year (no persist) | TurboTax/TaxAct — year-scoped product model | Prevents wrong-year data errors | User must re-select for prior year | ✅ |
   | | Persist via localStorage | QuickBooks multi-year pattern | Convenience for power users | Risk of stale-year confusion | ⚠️ |
   ```
-- **Workflow integration:** Enforced by `/create-plan` Step 2B (Research Open Design Questions). The reviewer can approve with the agent's recommendation or override.
+- **Workflow integration:** Enforced by `/create-plan` Step 2B (Research Open Design Questions) and generalised to every workflow stage by `project configuration/docs/human-decision-protocol.md` (2026-09-29): precedent sweep of prior project decisions before web research, an obviousness test that lets the agent decide and log two-way-door questions instead of asking, and a Decision Brief that leads with the recommendation and compares each alternative against it. The reviewer or human can approve with the agent's recommendation or override; autonomous decisions surface in the reflection's `### Decisions Log`.
 
 ### G25 — Multi-Surface Feature Parity Verification
 
@@ -879,7 +879,7 @@ const { showModal, guardedSelect, handleCancel, handleDiscard, handleSaveAndCont
   2. [ ] Write a parity test that seeds data through the FULL pipeline (not shortcuts)
   3. [ ] Assert data PRESENCE on each surface (count > 0, values non-zero), not just status codes
   4. [ ] Assert data EQUIVALENCE across surfaces (same counts, same totals)
-  5. [ ] If E2E tests are not feasible (per [E2E-ELECTRONLAUNCH]), provide a manual GUI verification checklist with expected screenshots
+  5. [ ] If E2E tests are not feasible (per [E2E-SANDBOX-NODISPLAY]), provide a manual GUI verification checklist with expected screenshots
   6. [ ] Exit criteria must include per-surface evidence (test output OR screenshot for GUI)
 - **Enforcement gate:** Multi-surface milestone exit criteria must include a "Parity Gates" section listing the cross-surface assertions. Plans missing this section will be rejected during `/plan-critical-review`.
 
@@ -992,7 +992,7 @@ const { showModal, guardedSelect, handleCancel, handleDiscard, handleSaveAndCont
   ```python
   # Agent writes plan ONLY to project folder — no artifact copy
   write_to_file(
-      TargetFile="docs/execution/plans/{date}-{slug}/implementation-plan.md",
+      TargetFile="{execution-docs}/plans/{date}-{slug}/implementation-plan.md",
       IsArtifact=False,  # ← no artifact, no auto-approval trigger
   )
   # Agent stops, presents summary as plain chat text
@@ -1034,7 +1034,7 @@ const { showModal, guardedSelect, handleCancel, handleDiscard, handleSaveAndCont
   - `BUILD_PLAN.md` Golden Rule #6 (canonical cross-layer rule)
   - `AGENTS.md` §Spec Sufficiency Gate (verify behaviors before planning)
   - `AGENTS.md` §Boundary Input Contract (schema parity between layers)
-  - milestone-tracking reflection: `docs/execution/reflections/2026-06-04-behavioral-mcp-actions-reflection.md`
+  - milestone-tracking reflection: an internal record
 
 ### G30 — Native Dropdown Styling in Chromium/Electron (Theme-Aware)
 
@@ -1269,8 +1269,50 @@ const { showModal, guardedSelect, handleCancel, handleDiscard, handleSaveAndCont
 - **Applies to:** TUI (the terminal analog of the GUI "write an E2E test" rule)
 - **Rule:** Any acceptance criterion describing **TUI runtime behavior** (a screen renders correct zones, a keystroke navigates, an error surfaces on the message line) must be proven by a **real-binary E2E test** — the compiled `zorivest-tui` spawned in a real PTY (ConPTY on Windows, unix PTY on Linux/macOS), driven by keystrokes, asserted against the captured `W×H` grid — using the `tui/internal/tuitest` harness. **Never** claim TUI runtime behavior verified by eyeballing, by `browser_subagent` (it cannot launch a terminal app), or by an in-process `app.Model` test alone (that tier proves model logic, not that the *shipped binary* renders under a real terminal). Reserve real-binary E2E for what only it can prove; cheaper tiers (unit, golden, `app.Model`+httptest) still carry the bulk of coverage.
 - **Determinism:** the harness pins `NO_COLOR=1` + `TERM=dumb` + a fixed PTY size + a stub backend, and polls-with-backoff (no `time.Sleep`/`math/rand`) so two captures of the same state are byte-identical. Grid widths are **rune** counts, not byte counts (box-drawing chars are multi-byte UTF-8, one display column).
-- **`[B]` path:** if a restricted sandbox blocks ConPTY/PTY syscalls, mark the **run** `[B]` with the pasted error + a CI follow-up (`tui-ci.yml`, ubuntu + windows) — the test stays **written and wired** (same discipline as `E2E-ELECTRONLAUNCH`, lower bar — no display server).
+- **`[B]` path:** if a restricted sandbox blocks ConPTY/PTY syscalls, mark the **run** `[B]` with the pasted error + a CI follow-up (`tui-ci.yml`, ubuntu + windows) — the test stays **written and wired** (same discipline as `E2E-SANDBOX-NODISPLAY`, lower bar — no display server).
 - **Origin:** 2026-06-28 milestone-tracking — the TUI had unit, golden, and `app.Model`+httptest tiers but no real-binary, agent-drivable harness; an agent could not launch the compiled TUI, send a keystroke, and see what rendered. The prior plan deferred this to `teatest`, which was never adopted (`go.mod` has 0 refs) and targets the wrong bubbletea module (`charmbracelet` vs the repo's `charm.land` fork). milestone-tracking built the Go-PTY harness + `tui-drive` CLI and wired this standard.
 - **Bad example:** "AC: pressing `1` from HOME opens Trades — *verified by reading the model's Update() switch*." (proves logic, not the rendered binary)
 - **Good example:** a `//go:build e2e` test that `Spawn`s the binary, `WaitAndCapture`s HOME, `AssertZones`, `SendKeys("1{enter}")`, re-captures, and asserts the Trades header is present.
 - **See:** `project configuration/skills/tui-e2e/SKILL.md`, `testing-strategy.md` §TUI Test Pyramid.
+
+### G40 — Test Wait Budget
+
+- **Severity:** 🔴 Critical
+- **Applies to:** All layers (Python, vitest, Go)
+- **Rule:** Production code never hard-codes a wait a test has to sit through: every timeout, grace period, retry backoff, poll interval and startup deadline is an injectable parameter (constructor keyword, function argument or module constant) whose product default is the real value, and the test injects a sub-second value.
+- **Enforcement:** the blocking `Python Slow-Test Budget` gate stage fails any pytest testcase slower than `SLOW_TEST_BUDGET_S` (`tools/validate_codebase.py`) that `SLOW_TEST_ALLOW` does not name; an allowlist entry needs a reason naming a product constant, `external:<tool>` or `owner: <milestone>`, and ships in the same milestone as the test. `pytest-timeout` (`timeout = 120` in `pyproject.toml`) turns a hung test into a red run. JS timers in vitest run under `vi.useFakeTimers()` and advance with `vi.advanceTimersByTimeAsync()`. Go waits are injectable `time.Duration` fields (G39 already bans `time.Sleep` in the TUI harness). The same stage reports a wait ratio beside `SLOW_TEST_BUDGET_S` (testcases whose call phase spent under `WAIT_CPU_FRACTION` of its wall on CPU, and each pytest half's worker efficiency, in `gate.json` `wait_ratio`), and it does not replace the budget: it never fails the stage. The fix table, the census command and the allowlist grammar live in `testing-strategy.md` §Test Wait Budget.
+- **Origin:** 2026-09-24 GT-2c census of a quiet-tree phase gate: two pipeline E2E cancel tests sat through a hard-coded 30 s cancel grace (30.2 s each), a lock-contention test waited out `(RESERVE_LOCK_RETRIES + 1)` × a 5000 ms `busy_timeout` (22.6 s), and an MCP keyprefix test booted on a fixed port inside the WinNAT exclusion range (15.9 s). None of the waits was part of what the tests assert.
+- **Bad example:**
+  ```python
+  # ❌ The wait is baked into the method: the service calls cancel_run(run_id),
+  # so every E2E cancel test sits through the full 30 s.
+  async def cancel_run(self, run_id: str, grace_seconds: float = 30.0) -> bool: ...
+  ```
+- **Good example:**
+  ```python
+  # ✅ Product default unchanged; the test fixture injects a sub-second grace.
+  class PipelineRunner:
+      def __init__(self, ..., *, cancel_grace_seconds: float = 30.0) -> None: ...
+
+  runner = PipelineRunner(..., cancel_grace_seconds=0.5)  # tests/conftest.py
+  ```
+- **Source:** GT-2c plan (`WAIT_INJECT`, `SLOW_BUDGET`, `SLOW_ALLOW`) and `testing-strategy.md` §Test Wait Budget.
+
+---
+
+### G41 — MCP Tool Descriptions and Example Payloads Must Satisfy Backend Step Models
+
+- **Severity:** 🔴 Critical
+- **Applies to:** MCP server, API, docs (extends G22 from GUI templates to every agent-facing contract surface)
+- **Rule:** The shape an agent is told to send must be the shape the backend enforces. One canonical example policy (`tests/fixtures/policy_contract/example-policy.json`, `POLICY_EXAMPLE`) and one committed schema snapshot (`tests/fixtures/policy_contract/policy-document.schema.json`, written by `tools/export_policy_schema.py`) are the contract; the MCP tool description is composed from constants that mirror them (`mcp-server/src/compound/policy-contract.ts`), never hand-typed; and every other surface (the `/scheduling/step-types` publication, the authoring guide) is checked against them. Gate = the parity oracle `mcp-server/tests/compound/policy-contract-parity.test.ts` (example ≡ fixture; example keys ⊆ schema; `PolicyStep` closed with no `config`; required fields present; description carries `steps: [{ id, type, params }]` and not the stale shape) plus `tools/export_policy_schema.py --check tests/fixtures/policy_contract/policy-document.schema.json` (G8 two-step: regenerate with `-o`, prove with `--check`, never hand-edit). When a step model, a description or the example changes, the oracle turns red until all three agree.
+- **Origin:** 2026-09-07 agentic friction report (`MCP-AGENT-CONTRACT-FRICTION-POLICY-SETUP`): the `zorivest_policy` description said `steps: [{ type, config }]`, the backend read `params` and dropped `config` silently; `provider_capabilities` advertised the slug `yahoo` while the adapter registry was keyed by `Yahoo Finance`; `/step-types` published `criteria` as an open object while validation enforced a closed one. Create and dry run both succeeded and the first scheduled live run failed. Closed by milestone-tracking/597/598/599 (CC11, 2026-09-27).
+- **Bad example:**
+  ```ts
+  description: "… steps: [{ type, config }] …"   // hand-typed; the backend never read `config`
+  ```
+- **Good example:**
+  ```ts
+  description: `… ${POLICY_STEP_SHAPE_TEXT} … Example: ${POLICY_JSON_EXAMPLE_TEXT} …`   // composed from policy-contract.ts
+  ```
+- **Verification:** `npx vitest run tests/compound/policy-contract-parity.test.ts --root mcp-server` green; `uv run python tools/export_policy_schema.py --check tests/fixtures/policy_contract/policy-document.schema.json` exit 0; `uv run pytest tests/unit/test_policy_contract_fixture.py` green (the fixture parses and validates against the real step registry).
+- **Source:** CC11 plan (`POLICY_EXAMPLE`, `SCHEMA_SNAPSHOT`, `POLICY_CONTRACT_TS`, `PARITY_ORACLE`, PD-5).

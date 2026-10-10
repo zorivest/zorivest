@@ -3,7 +3,7 @@
 Zorivest is a local-first trading **portfolio planning and analysis** tool. It imports
 trade results from execution platforms, analyzes performance, and generates trade plans —
 it **never places, modifies, or cancels orders**. Because it handles financial records and
-(optionally) encrypted local data, we take security reports seriously and appreciate your
+local data, we take security reports seriously and appreciate your
 help in keeping contributors and users safe.
 
 ## Supported Versions
@@ -58,7 +58,7 @@ updated if a fix requires longer, and we will credit you (with your consent) in 
 **In scope** — vulnerabilities in Zorivest's own code that could lead to:
 
 - Unauthorized read/write/exfiltration of local portfolio or trade data.
-- Bypass of the optional SQLCipher encryption or key handling.
+- Bypass of database encryption or key handling, where encryption is available (see docs/reference/encryption-posture.md).
 - Remote code execution, command injection, SQL injection, or path traversal.
 - Compromise of the local API (`127.0.0.1:17787`) or the Electron main↔renderer IPC boundary.
 - Exposure of secrets/API keys stored or logged by the application.

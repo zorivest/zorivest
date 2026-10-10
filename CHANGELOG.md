@@ -15,10 +15,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Options chain browser with Greeks and probability of ITM
 - Tax reporting: wash sale detection, Schedule D preparation
 - Policy engine for trading rule enforcement
-- Local-first architecture with optional SQLCipher AES-256 encryption
+- Local-first architecture; on Windows the database is stored unencrypted (see docs/reference/encryption-posture.md — use BitLocker)
 - SHA256SUMS.txt verification for all release artifacts
 
 ### Security
 - All data stored locally — no cloud dependency, no telemetry
-- Optional database encryption with user-controlled passphrase
+- Database encryption at rest is not available in this Windows release; see docs/reference/encryption-posture.md
 - Local API server bound to 127.0.0.1 only (not exposed to network)
